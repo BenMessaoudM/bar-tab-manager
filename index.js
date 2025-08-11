@@ -23,8 +23,7 @@ dotenv.config();
 const app = express();
 
 /* ------------------------ Core Middleware ------------------------ */
-app.use(express.json());
-
+app.use(express.static('public'));
 app.use(
   cors({
     origin: [
