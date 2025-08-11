@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Bar Tab Manager</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+
+  <!-- LOGIN -->
+  <div id="login-view">
+    <h1>Login</h1>
+    <input type="text" id="login-username" placeholder="Username" />
+    <input type="password" id="login-password" placeholder="Password" />
+    <div class="inline">
+      <button class="btn btn-primary" onclick="login()">Login</button>
+      <span id="login-error" style="color:#E53E3E"></span>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="dashboard-view" class="hidden">
+    <header>
+      <h1>Bar Tab Manager</h1>
+      <span class="spacer"></span>
+      <span class="badge">Role: <strong id="user-role"></strong></span>
+      <button class="btn btn-gold" onclick="logout()">Logout</button>
+    </header>
+
+    <div class="container">
+
+      <!-- Customers -->
+      <section class="card">
+        <h2>Customers</h2>
+        <div id="add-customer-section" class="inline hidden">
+          <input type="text" id="customer-name" placeholder="New customer name" />
+          <button class="btn btn-primary" onclick="addCustomer()">Add Customer</button>
+          <button class="btn btn-blue" id="open-workers" onclick="openWorkersModal()">Manage Workers</button>
+        </div>
+        <ul id="customers-list"></ul>
+      </section>
+
+      <!-- Drinks -->
+      <section class="card">
+        <h2>Drinks</h2>
+        <div id="drinks-buttons" class="add-buttons"></div>
+        <div id="manage-drinks-section" class="hidden" style="margin-top:8px">
+          <button class="btn btn-blue" onclick="openManageDrinksModal()">Manage Drinks</button>
+        </div>
+      </section>
+
+      <!-- Custom charge -->
+      <section class="card">
+        <h2>Custom Charge / Payment</h2>
+        <div class="stack">
+          <select id="customer-select"></select>
+          <input type="number" id="transaction-amount" placeholder="Amount (€)" />
+          <input type="text" id="transaction-description" placeholder="Description (type 'payment', 'cash', 'card' for positive)" />
+          <button class="btn btn-primary" onclick="addTransaction()">Add</button>
+        </div>
+        <p class="sub">Tip: Any positive number is auto‑converted to <b>negative</b> (charge) unless the description contains <i>pay/cash/card/deposit</i>.</p>
+      </section>
+
+      <!-- Session total -->
+      <section class="card">
+        <div class="total-session">
+          Total Session Balance: <span id="total-session-value">€0.00</span>
+        </div>
+      </section>
+
+      <!-- Transactions with Toggle -->
+      <section class="card">
+        <div class="inline" style="justify-content:space-between">
+          <h2>Transactions</h2>
+          <button id="tx-toggle" class="btn btn-muted" onclick="toggleTransactions()">Hide</button>
+        </div>
+        <div id="transactions-section">
+          <ul id="transactions-list"></ul>
+        </div>
+      </section>
+
+      <!-- Receipt Modal -->
+      <div id="receipt-modal" class="modal">
+        <div class="modal-content">
+          <div class="inline" style="justify-content:space-between">
+            <h2>Klubben Receipt</h2>
+            <button class="btn btn-danger" onclick="closeReceipt()">Close</button>
+          </div>
+          <p id="receipt-customer"></p>
+          <p>Date: <span id="receipt-date"></span></p>
+          <table id="receipt-table">
+            <thead>
+              <tr><th>Item</th><th>Price (€)</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+          <div class="modal-actions">
+            <button id="print-btn" class="btn btn-gold" onclick="printReceipt()">Print</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Manage Drinks Modal -->
+      <div id="manage-drinks-modal" class="modal">
+        <div class="modal-content">
+          <div class="inline" style="justify-content:space-between">
+            <h2>Manage Drinks</h2>
+            <button class="btn btn-danger" onclick="closeManageDrinksModal()">Close</button>
+          </div>
+          <ul id="drinks-list" style="margin:10px 0"></ul>
+          <div class="inline">
+            <input type="text" id="new-drink-name" placeholder="Drink name" />
+            <input type="number" id="new-drink-price" step="0.01" placeholder="Price (€)" />
+            <button class="btn btn-primary" onclick="addDrink()">Add Drink</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Manage Workers Modal (SUPERUSER ONLY) -->
+      <div id="workers-modal" class="modal">
+        <div class="modal-content">
+          <div class="inline" style="justify-content:space-between">
+            <h2>Manage Workers</h2>
+            <button class="btn btn-danger" onclick="closeWorkersModal()">Close</button>
+          </div>
+
+          <div class="inline" style="margin:8px 0">
+            <input type="text" id="worker-username" placeholder="Worker username" />
+            <input type="password" id="worker-password" placeholder="Password" />
+            <button class="btn btn-primary" onclick="addWorker()">Add Worker</button>
+          </div>
+
+          <ul id="workers-list"></ul>
+        </div>
+      </div>
+
+      <footer>
+        Made by Musse © <span id="current-year"></span>
+      </footer>
+    </div>
+  </div>
+
+  <script src="./app.js" defer></script>
+  <script>document.getElementById('current-year').textContent = new Date().getFullYear();</script>
+</body>
+</html>

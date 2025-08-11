@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Bar Tab Manager</title>
+  <link rel="stylesheet" href="dashboard.css" />
+</head>
+<body>
+  <header>
+    <h1>Bar Tab Manager</h1>
+  </header>
+
+  <!-- Admin Tools -->
+  <div id="admin-links" style="text-align: center; margin: 20px; display: none;">
+    <a href="user-management.html" class="logout-btn">⚙️ Manage Users</a>
+  </div>
+
+  <div class="container">
+    <div id="user-role" style="text-align:right; font-weight:bold;"></div>
+
+    <!-- Add Customer Button -->
+    <div id="add-customer-block" style="text-align:center; margin: 20px; display: none;">
+      <button class="logout-btn" onclick="openAddCustomerModal()">➕ Add New Customer</button>
+    </div>
+
+    <!-- Main Actions -->
+    <button onclick="logout()" class="logout-btn">Logout</button>
+    <button onclick="showReceiptModal()">🧾 Print Receipt</button>
+
+    <!-- Customer Cards -->
+    <div id="customerList"></div>
+
+    <!-- Total -->
+    <div class="total-session" id="totalSession"></div>
+  </div>
+
+  <!-- Receipt Modal -->
+  <div id="receipt-modal">
+    <div id="receipt-content">
+      <button id="receipt-close" onclick="hideReceiptModal()">Close</button>
+      <h2>Session Receipt</h2>
+      <table id="receipt-table">
+        <thead>
+          <tr>
+            <th>Customer</th>
+            <th>Balance (€)</th>
+          </tr>
+        </thead>
+        <tbody id="receipt-body"></tbody>
+      </table>
+      <button id="print-btn" onclick="window.print()">Print</button>
+    </div>
+  </div>
+
+  <!-- Add Customer Modal -->
+  <div id="add-customer-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <span class="close" onclick="closeAddCustomerModal()">&times;</span>
+      <h2>Add New Customer</h2>
+      <input type="text" id="newCustomerName" placeholder="Customer Name" />
+      <button onclick="addCustomer()" class="logout-btn">Add</button>
+    </div>
+  </div>
+
+  <script src="dashboard.js"></script>
+</body>
+</html>
