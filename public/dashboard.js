@@ -1,86 +1,114 @@
-document.addEventListener("DOMContentLoaded", () => {
-  const token = localStorage.getItem("token");
-  const role = localStorage.getItem("role");
+// public/dashboard.js
+
+// If the frontend is served by the same server as the API, leave API_BASE = ''.
+// If you host frontend separately (e.g., GitHub Pages), set API_BASE to your Render URL:
+//   const API_BASE = 'https://<your-render-app>.onrender.com';
+const API_BASE = ''; // '' means same origin; change to full URL if hosting separately.
+
+/* ----------------------- auth / boot ----------------------- */
+document.addEventListener('DOMContentLoaded', () => {
+  const token = localStorage.getItem('token');
+  const role  = localStorage.getItem('role');
 
   if (!token) {
-    window.location.href = "login.html";
+    window.location.href = 'login.html';
     return;
   }
 
-  // Show superuser-only tools
-  if (role === "superuser") {
-    document.getElementById("admin-links").style.display = "block";
-    document.getElementById("add-customer-block").style.display = "block";
+  // show superuser-only controls
+  if (role === 'superuser') {
+    show('#admin-links');
+    show('#add-customer-block');
   }
 
-  document.getElementById("user-role").textContent = `Logged in as: ${role}`;
+  const roleEl = document.getElementById('user-role');
+  if (roleEl) roleEl.textContent = `Logged in as: ${role}`;
+
   fetchCustomers();
 });
 
 function logout() {
   localStorage.clear();
-  window.location.href = "login.html";
+  window.location.href = 'login.html';
 }
 
+/* ----------------------- helpers ----------------------- */
+function show(sel){ const n = document.querySelector(sel); if (n) n.style.display = 'block'; }
+function hide(sel){ const n = document.querySelector(sel); if (n) n.style.display = 'none'; }
+function authed(url, options = {}) {
+  const token = localStorage.getItem('token');
+  const headers = Object.assign(
+    { Authorization: `Bearer ${token}` },
+    options.headers || {}
+  );
+  return fetch(url, Object.assign({}, options, { headers }));
+}
+
+/* ----------------------- customers ----------------------- */
 function fetchCustomers() {
-  fetch("/api/customers", {
-    headers: {
-      Authorization: `Bearer ${localStorage.getItem("token")}`
-    }
-  })
+  authed(`${API_BASE}/api/customers`)
     .then(res => res.json())
-    .then(customers => renderCustomers(customers));
+    .then(customers => renderCustomers(Array.isArray(customers) ? customers : []))
+    .catch(() => renderCustomers([]));
 }
 
 function renderCustomers(customers) {
-  const list = document.getElementById("customerList");
-  list.innerHTML = "";
+  const list = document.getElementById('customerList');
+  if (!list) return;
+  list.innerHTML = '';
 
   let total = 0;
 
   customers.forEach(customer => {
-    const card = document.createElement("div");
-    card.className = "customer-card";
+    // normalize amount (some APIs use balance)
+    const amt = typeof customer.amount === 'number'
+      ? customer.amount
+      : (typeof customer.balance === 'number' ? customer.balance : 0);
 
-    const name = document.createElement("h3");
+    total += amt;
+
+    const card = document.createElement('div');
+    card.className = 'customer-card';
+
+    const name = document.createElement('h3');
     name.textContent = customer.name;
 
-    const amount = document.createElement("div");
-    amount.className = "amount";
-    amount.textContent = `${customer.amount.toFixed(2)} €`;
-    if (customer.amount < 0) amount.classList.add("negative");
+    const amount = document.createElement('div');
+    amount.className = 'amount';
+    amount.textContent = `${amt.toFixed(2)} €`;
+    if (amt < 0) amount.classList.add('negative');
 
-    total += customer.amount;
+    const addButtons = document.createElement('div');
+    addButtons.className = 'add-buttons';
 
-    const addButtons = document.createElement("div");
-    addButtons.className = "add-buttons";
-
+    // buttons for charges: positive label -> negative transaction
     [1, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10].forEach(val => {
-      const btn = document.createElement("button");
+      const btn = document.createElement('button');
       btn.textContent = `+${val}`;
-      btn.onclick = () => updateAmount(customer._id, val);
+      btn.onclick = () => updateAmount(customer._id, -Math.abs(val), `Drink ${val}€`);
       addButtons.appendChild(btn);
     });
 
-    const minusBtn = document.createElement("button");
-    minusBtn.textContent = "-1";
-    minusBtn.onclick = () => updateAmount(customer._id, -1);
+    // quick -1 (also a charge)
+    const minusBtn = document.createElement('button');
+    minusBtn.textContent = '-1';
+    minusBtn.onclick = () => updateAmount(customer._id, -1, 'Manual charge');
     addButtons.appendChild(minusBtn);
 
     card.appendChild(name);
     card.appendChild(amount);
     card.appendChild(addButtons);
 
-    // Superuser-only buttons
-    if (localStorage.getItem("role") === "superuser") {
-      const editBtn = document.createElement("button");
-      editBtn.textContent = "✏️";
-      editBtn.className = "edit-btn";
+    // superuser-only actions
+    if (localStorage.getItem('role') === 'superuser') {
+      const editBtn = document.createElement('button');
+      editBtn.textContent = '✏️';
+      editBtn.className = 'edit-btn';
       editBtn.onclick = () => editCustomer(customer);
 
-      const deleteBtn = document.createElement("button");
-      deleteBtn.textContent = "🗑️";
-      deleteBtn.className = "delete-btn";
+      const deleteBtn = document.createElement('button');
+      deleteBtn.textContent = '🗑️';
+      deleteBtn.className = 'delete-btn';
       deleteBtn.onclick = () => deleteCustomer(customer._id);
 
       card.appendChild(editBtn);
@@ -90,97 +118,108 @@ function renderCustomers(customers) {
     list.appendChild(card);
   });
 
-  document.getElementById("totalSession").textContent = `Session Total: ${total.toFixed(2)} €`;
+  const totalEl = document.getElementById('totalSession');
+  if (totalEl) totalEl.textContent = `Session Total: ${total.toFixed(2)} €`;
 }
 
-function updateAmount(id, amount) {
-  fetch(`/api/transactions/${id}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${localStorage.getItem("token")}`
-    },
-    body: JSON.stringify({ amount })
+/* Create a transaction:
+   backend expects POST /api/transactions
+   body: { customerId, amount, description }
+*/
+function updateAmount(customerId, amount, description = 'Custom') {
+  authed(`${API_BASE}/api/transactions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ customerId, amount, description })
   })
-    .then(res => res.json())
-    .then(() => fetchCustomers());
+    .then(res => res.ok ? res.json() : res.json().then(e => Promise.reject(e)))
+    .then(() => fetchCustomers())
+    .catch(err => alert(err.message || 'Failed to add transaction'));
 }
 
 function deleteCustomer(id) {
-  if (!confirm("Delete this customer?")) return;
+  if (!confirm('Delete this customer? This will remove their transactions too.')) return;
 
-  fetch(`/api/customers/${id}`, {
-    method: "DELETE",
-    headers: {
-      Authorization: `Bearer ${localStorage.getItem("token")}`
-    }
-  }).then(() => fetchCustomers());
+  authed(`${API_BASE}/api/customers/${id}`, { method: 'DELETE' })
+    .then(() => fetchCustomers())
+    .catch(() => fetchCustomers());
 }
 
 function editCustomer(customer) {
-  const newName = prompt("Edit name:", customer.name);
+  const newName = prompt('Edit name:', customer.name);
   if (!newName) return;
 
-  fetch(`/api/customers/${customer._id}`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${localStorage.getItem("token")}`
-    },
+  authed(`${API_BASE}/api/customers/${customer._id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: newName })
-  }).then(() => fetchCustomers());
+  })
+    .then(() => fetchCustomers())
+    .catch(() => fetchCustomers());
 }
 
-// Add Customer Modal Logic
+/* ----------------------- add customer modal ----------------------- */
 function openAddCustomerModal() {
-  document.getElementById("add-customer-modal").style.display = "flex";
+  const m = document.getElementById('add-customer-modal');
+  if (m) m.style.display = 'flex';
 }
 
 function closeAddCustomerModal() {
-  document.getElementById("add-customer-modal").style.display = "none";
-  document.getElementById("newCustomerName").value = "";
+  const m = document.getElementById('add-customer-modal');
+  const input = document.getElementById('newCustomerName');
+  if (m) m.style.display = 'none';
+  if (input) input.value = '';
 }
 
 function addCustomer() {
-  const name = document.getElementById("newCustomerName").value;
-  if (!name.trim()) return alert("Please enter a name");
+  const input = document.getElementById('newCustomerName');
+  const name = (input?.value || '').trim();
+  if (!name) return alert('Please enter a name');
 
-  fetch("/api/customers", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${localStorage.getItem("token")}`
-    },
+  authed(`${API_BASE}/api/customers`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name })
   })
-    .then(res => res.json())
-    .then(() => {
-      closeAddCustomerModal();
-      fetchCustomers();
-    });
+    .then(res => res.ok ? res.json() : res.json().then(e => Promise.reject(e)))
+    .then(() => { closeAddCustomerModal(); fetchCustomers(); })
+    .catch(err => alert(err.message || 'Failed to add customer'));
 }
 
-// Receipt modal logic
+/* ----------------------- receipt modal ----------------------- */
 function showReceiptModal() {
-  fetch("/api/customers", {
-    headers: {
-      Authorization: `Bearer ${localStorage.getItem("token")}`
-    }
-  })
+  authed(`${API_BASE}/api/customers`)
     .then(res => res.json())
     .then(customers => {
-      const tbody = document.getElementById("receipt-body");
-      tbody.innerHTML = "";
-      customers.forEach(c => {
-        const row = document.createElement("tr");
-        row.innerHTML = `<td>${c.name}</td><td>${c.amount.toFixed(2)} €</td>`;
+      const tbody = document.getElementById('receipt-body');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+      (customers || []).forEach(c => {
+        const amt = typeof c.amount === 'number'
+          ? c.amount
+          : (typeof c.balance === 'number' ? c.balance : 0);
+        const row = document.createElement('tr');
+        row.innerHTML = `<td>${escapeHtml(c.name)}</td><td>${amt.toFixed(2)} €</td>`;
         tbody.appendChild(row);
       });
-      document.getElementById("receipt-modal").style.display = "flex";
+      const m = document.getElementById('receipt-modal');
+      if (m) m.style.display = 'flex';
     });
 }
 
 function hideReceiptModal() {
-  document.getElementById("receipt-modal").style.display = "none";
+  const m = document.getElementById('receipt-modal');
+  if (m) m.style.display = 'none';
 }
-                                
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+}
+
+/* expose for inline handlers (if any) */
+window.logout = logout;
+window.openAddCustomerModal = openAddCustomerModal;
+window.closeAddCustomerModal = closeAddCustomerModal;
+window.addCustomer = addCustomer;
+window.showReceiptModal = showReceiptModal;
+window.hideReceiptModal = hideReceiptModal;
