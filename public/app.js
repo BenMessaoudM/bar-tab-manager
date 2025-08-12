@@ -1,7 +1,23 @@
 /* =========================================================
-   Bar Tab Manager - Frontend
+   Bar Tab Manager - Frontend (updated for local + hosted)
    ========================================================= */
-const API_BASE = 'http://127.0.0.1:5000/api';
+
+/* ---------- API base: auto-detect (local vs hosted) ---------- */
+const API_BASE = (() => {
+  // Optional manual override before this file loads
+  if (window.API_BASE_OVERRIDE) return window.API_BASE_OVERRIDE;
+
+  const host = window.location.hostname;
+  const isGhPages = host.endsWith('github.io');
+  const isFile = window.location.protocol === 'file:'; // opened directly
+  const isLocal = host === 'localhost' || host === '127.0.0.1';
+
+  // When served from GitHub Pages or a file, use your Render API
+  if (isGhPages || isFile) return 'https://bar-tab-api.onrender.com/api';
+
+  // Default to local dev
+  return 'http://127.0.0.1:5000/api';
+})();
 
 let token = localStorage.getItem('token') || '';
 let userRole = ''; // 'worker' or 'superuser'
@@ -18,9 +34,14 @@ const closeModal = (s) => { const m = el(s); if (m) m.classList.remove('open'); 
 
 /* ---------- Boot ---------- */
 document.addEventListener('DOMContentLoaded', () => {
-  // wire login button too (even if you also use inline onclick)
+  // Wire login button (in case form submit is prevented)
   const loginBtn = el('#login-btn');
-  if (loginBtn) loginBtn.addEventListener('click', login);
+  if (loginBtn) {
+    loginBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      login();
+    });
+  }
 
   if (token) fetchUserInfo(); else showLogin();
 
@@ -444,7 +465,9 @@ function groupTransactions(txs) {
       payments.push({ when: new Date(t.createdAt).toLocaleString(), desc: prettifyPaymentName(t.drink || t.description || 'Payment'), amount: v });
     }
   });
-  const groupedPurchases = Array.from(map.entries()).map(([name, e]) => ({ name, qty: e.qty, sum: e.sum })).sort((a, b) => a.name.localeCompare(b.name));
+  const groupedPurchases = Array.from(map.entries())
+    .map(([name, e]) => ({ name, qty: e.qty, sum: e.sum }))
+    .sort((a, b) => a.name.localeCompare(b.name));
   return { groupedPurchases, payments, netTotal };
 }
 
