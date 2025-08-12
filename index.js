@@ -1,9 +1,9 @@
-// index.js (CommonJS)
+// index.js (CommonJS) — API server entry for Bar Tab Manager
+
 const express = require('express');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const cors = require('cors');
-const bcrypt = require('bcryptjs');
 
 // Routes
 const authRoutes = require('./routes/auth');
@@ -12,92 +12,79 @@ const customerRoutes = require('./routes/customers');
 const transactionRoutes = require('./routes/transactions');
 const drinkRoutes = require('./routes/drinks');
 
-// Middleware
+// Error middleware
 const errorHandler = require('./middleware/errorHandler');
-
-// Models
-const User = require('./models/User');
 
 dotenv.config();
 
 const app = express();
 
-/* ------------------------ Core Middleware ------------------------ */
-app.use(express.static('public'));
+/* ------------------------- CORS ------------------------- */
+/**
+ * Allow requests from:
+ *  - Local dev front-end (http://127.0.0.1:8080 and http://localhost:8080)
+ *  - GitHub Pages domain (both user root and project page)
+ *  - Render (your API is hosted here)
+ *  - Any origin you add via env ALLOWED_ORIGINS (comma-separated)
+ */
+const staticAllowed = new Set([
+  'http://127.0.0.1:8080',
+  'http://localhost:8080',
+  'https://benmessaoudm.github.io',
+  'https://benmessaoudm.github.io/bar-tab-manager',
+]);
+
+if (process.env.ALLOWED_ORIGINS) {
+  process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim()).forEach(o => staticAllowed.add(o));
+}
+
 app.use(
   cors({
-    origin: [
-      'http://localhost:8080',
-      'http://127.0.0.1:8080',
-      // your GitHub Pages site(s)
-      'https://benmessaoudm.github.io',
-      'https://benmessaoudm.github.io/bar-tab-manager',
-    ],
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    origin: (origin, cb) => {
+      // allow non-browser (no origin) and those in the list
+      if (!origin || staticAllowed.has(origin)) return cb(null, true);
+      // Also allow any subpath of your GH pages project (some browsers send trailing slashes)
+      if (origin.startsWith('https://benmessaoudm.github.io')) return cb(null, true);
+      return cb(new Error(`CORS blocked: ${origin}`));
+    },
     credentials: false,
   })
 );
 
-// Optional simple health probe
-app.get('/health', (_, res) => res.status(200).send('ok'));
+/* ------------------------- Core middleware ------------------------- */
+app.use(express.json());
+app.set('trust proxy', 1); // for Render / proxies
 
-/* ------------------------ MongoDB Connect ------------------------ */
+/* ------------------------- DB connect ------------------------- */
+const mongoUri = process.env.MONGO_URI || process.env.DATABASE_URL;
+if (!mongoUri) {
+  console.warn('⚠️  MONGO_URI is not set. Set it in your environment.');
+}
 mongoose
-  .connect(process.env.MONGO_URI, {
-    // These options are fine with Mongoose 6+/7+
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
-  .then(async () => {
-    console.log('✅ MongoDB connected');
-    await createAdminIfNotExists();
-  })
+  .connect(mongoUri, { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(() => console.log('✅ MongoDB connected'))
   .catch((err) => {
-    console.error('❌ MongoDB connection error:', err);
+    console.error('❌ MongoDB connection error:', err.message);
   });
 
-/**
- * Ensure an admin account exists in production environments where shell access
- * isn’t available (e.g., Render/Hobby tiers).
- * Username: admin / Password: admin
- */
-async function createAdminIfNotExists() {
-  try {
-    const existing = await User.findOne({ username: 'admin' });
-    if (!existing) {
-      const hash = await bcrypt.hash('admin', 10);
-      await User.create({
-        username: 'admin',
-        password: hash,
-        role: 'superuser',
-      });
-      console.log(
-        '👑 Seeded admin user → username: "admin", password: "admin" (please change later)'
-      );
-    } else {
-      console.log('ℹ️ Admin user already exists.');
-      // Optionally enforce role/password if you want:
-      // existing.role = 'superuser';
-      // await existing.save();
-    }
-  } catch (err) {
-    console.error('❌ Failed to seed admin user:', err.message);
-  }
-}
+/* ------------------------- Health & root ------------------------- */
+app.get('/', (_req, res) => res.json({ ok: true, name: 'bar-tab-api' }));
+app.get('/healthz', (_req, res) => res.status(200).send('ok'));
 
-/* --------------------------- API Routes -------------------------- */
+/* ------------------------- API routes ------------------------- */
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/drinks', drinkRoutes);
 
-/* ------------------------ Error Handler Last --------------------- */
+/* ------------------------- Error handler (last) ------------------------- */
 app.use(errorHandler);
 
-/* ----------------------------- Start ----------------------------- */
+/* ------------------------- Start ------------------------- */
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`🚀 Server running at http://127.0.0.1:${PORT}`);
+  console.log(`🚀 API listening on port ${PORT}`);
 });
+
+module.exports = app;
